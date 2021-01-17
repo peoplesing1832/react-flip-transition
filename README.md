@@ -1,5 +1,9 @@
 ## React Transition v2
 
+```shell
+react-flip-transition
+```
+
 - [Docs](https://peoplesing1832.github.io/flip/)
 
 ### v3
