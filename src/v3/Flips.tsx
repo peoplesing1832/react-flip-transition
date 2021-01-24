@@ -15,6 +15,7 @@ interface FlipsProps {
   wrapClass?: string; // 包裹的class名称
   name?: string; // 添加类名的前缀
   children?: React.ReactNode
+  inOutDuration?: number; // 非flip动画的过渡时间，比如离开和进入的过渡时间
 }
 
 const getElementByFlipIdAll = (parent: HTMLElement) => {
@@ -23,6 +24,7 @@ const getElementByFlipIdAll = (parent: HTMLElement) => {
 
 const Flips: React.FC<FlipsProps> = (props) => {
   const {
+    inOutDuration = 200,
     wrap = 'div',
     wrapClass = '',
     name = 'r',
@@ -33,7 +35,6 @@ const Flips: React.FC<FlipsProps> = (props) => {
   const parentRef = useRef<HTMLElement>();
   const firstMount = useRef<boolean>(true);
   const prevRectsRef = useRef<{[key: string]: DOMRect}>();
-  const move = useRef<{[key: string]: boolean}>({});
 
   // 强制重绘
   const reflow = useCallback(() => {
@@ -157,6 +158,7 @@ const Flips: React.FC<FlipsProps> = (props) => {
   ): ChildrenMap => {
     return getMap(children, (child) => {
       return React.cloneElement(child as React.ReactElement, {
+        _inOutDuration: inOutDuration,
         _name: name,
         _animation: true,
         _onLeaveed: () => {
@@ -187,6 +189,7 @@ const Flips: React.FC<FlipsProps> = (props) => {
       if (isNew) {
         children[key] = React.cloneElement(child, {
           _name: name,
+          _inOutDuration: inOutDuration,
           _animation: true,
           _onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
@@ -201,6 +204,7 @@ const Flips: React.FC<FlipsProps> = (props) => {
         children[key] = React.cloneElement(child, {
           _animation: prevProps._animation,
           _name: prevProps._name,
+          _inOutDuration: prevProps._inOutDuration,
           _onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
             handleLeave(key);
