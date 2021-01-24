@@ -238,11 +238,13 @@ const Flips: React.FC<FlipsProps> = (props) => {
         const flipEle = flipEles[i];
         const { flipId } = (flipEle as HTMLElement).dataset;
         if (flipId && flipEle) {
-          removeClass(flipEle as HTMLElement, moveClass);
+          // (flipEle as HTMLElement).style.transition = 'none' 计算最新的样式存在一些问题
+          (flipEle as HTMLElement).style.transition = 'none'
           nextRects[flipId] = relativeRect(parentRef.current, flipEle as HTMLElement);
           if (!prevRectsRef.current[flipId]) {
             prevRectsRef.current[flipId] = nextRects[flipId];
           }
+          (flipEle as HTMLElement).style.transition = ''
         }
       }
       // 计算之前样式与现在的样式的差，并设置样式
