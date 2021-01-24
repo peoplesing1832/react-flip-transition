@@ -3,33 +3,87 @@ import {
   useState,
   useRef,
   useEffect,
+  useCallback,
+  useLayoutEffect,
 } from 'react';
 import {
-  ChildrenMap
+  ChildrenMap,
 } from './Observer';
 
 interface FlipsProps {
-  inOutDuration?: number; // 非flip动画的过渡时间，比如离开和进入的过渡时间
-  wrap?: string | false; // 是否添加一层包裹
+  wrap?: string; // 是否添加一层包裹
   wrapClass?: string; // 包裹的class名称
   name?: string; // 添加类名的前缀
+  children?: React.ReactNode
 }
 
-export const FlipsContext = React.createContext<{
-  forceUpdate: any;
-}>({
-  forceUpdate: null
-});
+const getElementByFlipIdAll = (parent: HTMLElement) => {
+  return parent.querySelectorAll(`[data-flip-id]`);
+};
 
 const Flips: React.FC<FlipsProps> = (props) => {
-
   const {
-    inOutDuration = 200,
     wrap = 'div',
     wrapClass = '',
     name = 'r',
     children: _children,
   } = props;
+
+  const _reflowRef = useRef<number>();
+  const parentRef = useRef<HTMLElement>();
+  const firstMount = useRef<boolean>(true);
+  const prevRectsRef = useRef<{[key: string]: DOMRect}>();
+  const move = useRef<{[key: string]: boolean}>({});
+
+  // 强制重绘
+  const reflow = useCallback(() => {
+    _reflowRef.current = document.body.offsetHeight;
+  }, []);
+
+  const relativeRect = useCallback((parent: HTMLElement, child: HTMLElement): DOMRect => {
+    reflow();
+    const parentRect = parent.getBoundingClientRect();
+    let rect = child.getBoundingClientRect();
+    rect.x = parentRect.x - rect.x;
+    rect.y = parentRect.y - rect.y;
+    return rect;
+  }, []);
+
+  // 添加类名
+  const addClass = useCallback((ele: HTMLElement, className: string): void => {
+    if (!className || !(className = className.trim())) {
+      return;
+    }
+    ele.classList.add(className);
+  }, []);
+
+  // 删除类名
+  const removeClass = useCallback((ele: HTMLElement, className: string): void => {
+    if (!className || !(className = className.trim())) {
+      return;
+    }
+    ele.classList.remove(className);
+    if (!ele.classList.length) {
+      ele.removeAttribute('class');
+    }
+  }, []);
+
+  // 缓存之前的位置
+  const force = () => {
+    if (parentRef.current) {
+      const flipEles = getElementByFlipIdAll(parentRef.current);
+      const temp: { [key: string]: DOMRect } = {};
+      for (let i = 0; i < flipEles.length; i++) {
+
+        const flipEle = flipEles[i];
+        const { flipId } = (flipEle as HTMLElement).dataset;
+        if (flipId && flipEle) {
+          temp[flipId] = relativeRect(parentRef.current, flipEle as HTMLElement);
+        }
+      }
+      prevRectsRef.current = temp;
+    }
+  };
 
   const handleLeave = (key: React.ReactText) => {
     setChildren((prevChildren) => {
@@ -103,7 +157,6 @@ const Flips: React.FC<FlipsProps> = (props) => {
   ): ChildrenMap => {
     return getMap(children, (child) => {
       return React.cloneElement(child as React.ReactElement, {
-        _inOutDuration: inOutDuration,
         _name: name,
         _animation: true,
         _onLeaveed: () => {
@@ -134,7 +187,6 @@ const Flips: React.FC<FlipsProps> = (props) => {
       if (isNew) {
         children[key] = React.cloneElement(child, {
           _name: name,
-          _inOutDuration: inOutDuration,
           _animation: true,
           _onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
@@ -148,7 +200,6 @@ const Flips: React.FC<FlipsProps> = (props) => {
       } else if (isNeverChange) {
         children[key] = React.cloneElement(child, {
           _animation: prevProps._animation,
-          _inOutDuration: prevProps._inOutDuration,
           _name: prevProps._name,
           _onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
@@ -160,7 +211,6 @@ const Flips: React.FC<FlipsProps> = (props) => {
     return children;
   };
 
-  const firstMount = useRef<boolean>(true);
   const [children, setChildren] = useState<ChildrenMap>(() => {
     return initChildren(_children);
   });
@@ -173,29 +223,76 @@ const Flips: React.FC<FlipsProps> = (props) => {
     }
   }, [_children]);
 
+  useLayoutEffect(() => {
+    console.log('useLayoutEffect')
+    const tasks = [];
+    if (parentRef.current && prevRectsRef.current) {
+      const flipEles = getElementByFlipIdAll(parentRef.current);
+      const moveClass = `${name}-move`;
+      const nextRects: {[key: string]: DOMRect} = {};
+      // 统一计算最新的样式
+      for (let i = 0; i < flipEles.length; i++) {
+        const flipEle = flipEles[i];
+        const { flipId } = (flipEle as HTMLElement).dataset;
+        if (flipId && flipEle) {
+          removeClass(flipEle as HTMLElement, moveClass);
+          nextRects[flipId] = relativeRect(parentRef.current, flipEle as HTMLElement);
+        }
+      }
+      // 计算之前样式与现在的样式的差，并设置样式
+      for (let i = 0; i < flipEles.length; i++) {
+        const flipEle = flipEles[i];
+        const { flipId } = (flipEle as HTMLElement).dataset;
+        if (flipId && flipEle) {
+          const nextRect = nextRects[flipId];
+          const prevRect = prevRectsRef.current[flipId];
+          let x = nextRect.x - prevRect.x;
+          let y = nextRect.y - prevRect.y;
+          if ((x !== 0 || y !== 0)) {
+            const s = (flipEle as HTMLElement).style;
+            s.transform = s.webkitTransform = `translate(${x}px,${y}px)`;
+            s.transitionDuration = '0s';
+            tasks.push(() => {
+              addClass(flipEle as HTMLElement, moveClass);
+              s.transform = s.webkitTransform = s.transitionDuration = '';
+              (flipEle as HTMLElement).addEventListener('transitionend', function cb (e) {
+                if (e && e.target !== flipEle) {
+                  return
+                }
+                if (!e || /transform$/.test(e.propertyName)) {
+                  (flipEle as HTMLElement).removeEventListener('transitionend', cb);
+                  // 删除move类
+                  removeClass(flipEle as HTMLElement, moveClass);
+                }
+              });
+            })
+          }
+        }
+      }
+      // 统一强制刷新
+      reflow();
+      // 统一开始动画
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        task();
+      }
+    }
+  }, [children]);
+
   const ChildNode = Object.values(children);
 
-  if (wrap) {
-    const WrapChildNode = React.createElement(wrap, {
-      className: wrapClass,
-    }, ChildNode);
+  const WrapChildNode = React.createElement(wrap, {
+    className: wrapClass,
+    ref: parentRef,
+  }, ChildNode);
 
-    return (
-      <FlipsContext.Provider value={{
-        forceUpdate: children
-      }}>
-        { WrapChildNode }
-      </FlipsContext.Provider>
-    );
-  }
+  force();
 
   return (
-    <FlipsContext.Provider value={{
-      forceUpdate: children
-    }}>
-      { ChildNode }
-    </FlipsContext.Provider>
+    <>
+      { WrapChildNode }
+    </>
   );
 }
 
-export default Flips;
+export default React.memo(Flips);
