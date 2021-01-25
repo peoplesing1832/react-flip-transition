@@ -238,6 +238,7 @@ const Flips: React.FC<FlipsProps> = (props) => {
         const { flipId } = (flipEle as HTMLElement).dataset;
         if (flipId && flipEle) {
           // (flipEle as HTMLElement).style.transition = 'none' 计算最新的样式存在一些问题
+          // 其实Vue本身也是有问题的，如果不止在moveclass上添加的transtion是有问题的
           (flipEle as HTMLElement).style.transition = 'none'
           nextRects[flipId] = relativeRect(parentRef.current, flipEle as HTMLElement);
           if (!prevRectsRef.current[flipId]) {
