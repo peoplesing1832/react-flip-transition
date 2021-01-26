@@ -6,16 +6,15 @@ import {
   useCallback,
   useLayoutEffect,
 } from 'react';
-import {
-  ChildrenMap,
-} from './Observer';
 
+type ChildrenMap = {
+  [key: string]: React.ReactNode
+};
 interface FlipsProps {
   wrap?: string; // 是否添加一层包裹
   wrapClass?: string; // 包裹的class名称
   name?: string; // 添加类名的前缀
   children?: React.ReactNode
-  inOutDuration?: number; // 非flip动画的过渡时间，比如离开和进入的过渡时间
 }
 
 const getElementByFlipIdAll = (parent: HTMLElement) => {
@@ -24,7 +23,6 @@ const getElementByFlipIdAll = (parent: HTMLElement) => {
 
 const Flips: React.FC<FlipsProps> = (props) => {
   const {
-    inOutDuration = 200,
     wrap = 'div',
     wrapClass = '',
     name = 'r',
@@ -157,10 +155,9 @@ const Flips: React.FC<FlipsProps> = (props) => {
   ): ChildrenMap => {
     return getMap(children, (child) => {
       return React.cloneElement(child as React.ReactElement, {
-        _inOutDuration: inOutDuration,
-        _name: name,
-        _animation: true,
-        _onLeaveed: () => {
+        name: name,
+        animation: true,
+        onLeaveed: () => {
           const key = (child as React.ReactElement).key || '';
           handleLeave(key);
         },
@@ -187,24 +184,22 @@ const Flips: React.FC<FlipsProps> = (props) => {
       const prevProps = ((prevChildrenMap[key] as React.ReactElement)?.props as any);
       if (isNew) {
         children[key] = React.cloneElement(child, {
-          _name: name,
-          _inOutDuration: inOutDuration,
-          _animation: true,
-          _onLeaveed: () => {
+          name: name,
+          animation: true,
+          onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
             handleLeave(key);
           },
         });
       } else if (isDelete) {
         children[key] = React.cloneElement(child, {
-          _animation: false,
+          animation: false,
         });
       } else if (isNeverChange) {
         children[key] = React.cloneElement(child, {
-          _animation: prevProps._animation,
-          _name: prevProps._name,
-          _inOutDuration: prevProps._inOutDuration,
-          _onLeaveed: () => {
+          animation: prevProps.animation,
+          name: prevProps.name,
+          onLeaveed: () => {
             const key = (child as React.ReactElement).key || '';
             handleLeave(key);
           },
